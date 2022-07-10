@@ -16,8 +16,8 @@ interface ChildProps {
 
 export interface InternalFieldProps<Values = any> {
   children?:
-    | React.ReactElement
-    | ((control: ChildProps, form: FormInstance<Values>) => React.ReactNode);
+  | React.ReactElement
+  | ((control: ChildProps, form: FormInstance<Values>) => React.ReactNode);
   /**
    * Set up `dependencies` field.
    * When dependencies field update and current field is touched,
@@ -36,6 +36,7 @@ export interface FieldProps<Values = any>
 
 class Field extends Component<InternalFieldProps, InternalFormInstance>
   implements FieldEntity {
+  // 指定this.context 等于FieldContext.Provider传递过来的form实例对象
   public static contextType = FieldContext;
 
   private cancelRegister: any;
@@ -51,11 +52,12 @@ class Field extends Component<InternalFieldProps, InternalFormInstance>
     this.cancelRegister && this.cancelRegister();
   }
 
-  public onStoreChange = () => {
+  onStoreChange = () => {
+    //值改变调用react的forceUpdate重新render，因为数据不是响应式的
     this.forceUpdate();
   };
 
-  public validateRules = () => {
+  validateRules = () => {
     const { rules, name } = this.props;
     if (!name || !rules || !rules.length) return [];
     const cloneRule: any = [...rules];
@@ -93,6 +95,7 @@ class Field extends Component<InternalFieldProps, InternalFormInstance>
   };
   render() {
     const { children } = this.props;
+    // 为form.item附加上form中的属性
     const returnChildNode = React.cloneElement(
       children as React.ReactElement,
       this.getControled(),
