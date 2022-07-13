@@ -151,8 +151,8 @@ class FormStore {
       });
   };
 
-  setInitialValues = (initialValues: Store, init: boolean) => {
-    if (init) return;
+  setInitialValues = (initialValues: Store) => {
+    console.log('setInitvalues');
     this.initialValues = initialValues || {};
     this.setFieldsValue(initialValues);
   };

@@ -47,12 +47,8 @@ const Form: React.FC<FormProps> = ({
     onValuesChange,
   });
 
-  const mountRef = React.useRef<boolean>(true);
   // 设置表单初始值
-  setInitialValues(initialValues || {}, !mountRef.current);
-  if (!mountRef.current) {
-    mountRef.current = false;
-  }
+  setInitialValues(initialValues || {});
 
   return (
     <form

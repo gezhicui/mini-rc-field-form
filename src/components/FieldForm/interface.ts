@@ -121,7 +121,7 @@ export interface FormInstance<Values = any> {
   setFieldsValue: (value: any) => void;
   validateFields: any;
   setCallbacks: (callbacks: Callbacks) => void;
-  setInitialValues: (values: Store, init: boolean) => void;
+  setInitialValues: (values: Store) => void;
   submit: () => void;
   resetFields: (fields?: string[]) => void;
 }
