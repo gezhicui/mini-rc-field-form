@@ -111,7 +111,7 @@ const { setCallbacks, setInitialValues } = formInstance;
 
 `setCallbacks, setInitialValues`这两个方法在`FormStore`中实现如下：
 
-```diff
+```js
 class FormStore {
 // 使用callbacks保存用户自定义方法
 +  private callbacks = {};
@@ -120,13 +120,13 @@ class FormStore {
 
 
 +  setCallbacks = (callbacks) => {
-+    this.callbacks = callbacks;
-+  };
+     this.callbacks = callbacks;
+   };
 
 +  setInitialValues = (initialValues) => {
-+    this.initialValues = initialValues || {};
-+    this.setFieldsValue(initialValues);
-+  };
+     this.initialValues = initialValues || {};
+     this.setFieldsValue(initialValues);
+   };
 
   getForm = () => {
     return {
@@ -250,32 +250,32 @@ validateRules = () => {
 
 `registerField`方法主要是初始化处理当前`Field`组件的内容，并把当前组件存进`fieldEntities`数组中，方法的实现如下：
 
-```diff
+```js
 class FormStore {
 +  private fieldEntities = [];
 
 +  registerField = (entity) => {
      // 用fieldEntities保存页面上的所有Field组件
-+    this.fieldEntities.push(entity);
-+    const { name, initialValue } = entity.props;
+     this.fieldEntities.push(entity);
+     const { name, initialValue } = entity.props;
      // 初始化Field传入的initialValue
-+    if (initialValue !== undefined && name) {
-+      this.initialValues = {
-+        ...this.initialValues,
-+        [name]: initialValue,
-+      };
+     if (initialValue !== undefined && name) {
+       this.initialValues = {
+         ...this.initialValues,
+         [name]: initialValue,
+       };
        // store中添加控件的初始化值
-+      this.setFieldsValue({
-+        ...this.store,
-+        [name]: initialValue,
-+      });
-+    }
+       this.setFieldsValue({
+         ...this.store,
+         [name]: initialValue,
+       });
+     }
      // 返回一个函数，当组件卸载时调用该函数，移除改组件的所有状态
-+    return () => {
-+      this.fieldEntities = this.fieldEntities.filter(item => item !== entity);
-+      // this.store = setValue(this.store, namePath, undefined); // 删除移除字段的值
-+    };
-+  };
+     return () => {
+       this.fieldEntities = this.fieldEntities.filter(item => item !== entity);
+       // this.store = setValue(this.store, namePath, undefined); // 删除移除字段的值
+     };
+   };
 
   getForm = () => {
     return {
@@ -336,7 +336,7 @@ getControled = () => {
 
 从代码可以看出，`Field`为空间扩展了`value`和`onChange`，其中，`value`是通过`getFieldValue`拿到`form`实例对应的值来进行绑定，`onChange`触发了`setFieldsValue`方法来对表单数据进行修改。这两个方法也要在 `FormStore`对象中定义一下
 
-```diff
+```js
 class FormStore {
 
 +  private initialValues = {};
@@ -344,24 +344,24 @@ class FormStore {
 +  getFieldValue = (name) => this.store[name];
 
 +  setFieldsValue = (values, reset) => {
-+    const nextStore = {
-+      ...this.store,
-+      ...values,
-+    };
-+    this.store = nextStore;
-+    this.fieldEntities.forEach(({ props, onStoreChange }) => {
-+      const name = props.name;
-+      Object.keys(values).forEach(key => {
-+        if (name === key || reset) {
-+          onStoreChange();
-+        }
-+      });
-+    });
-+    const { onValuesChange } = this.callbacks;
-+    if (onValuesChange) {
-+      onValuesChange(values, nextStore);
-+    }
-+  };
+     const nextStore = {
+       ...this.store,
+       ...values,
+     };
+     this.store = nextStore;
+     this.fieldEntities.forEach(({ props, onStoreChange }) => {
+       const name = props.name;
+       Object.keys(values).forEach(key => {
+         if (name === key || reset) {
+           onStoreChange();
+         }
+       });
+     });
+     const { onValuesChange } = this.callbacks;
+     if (onValuesChange) {
+       onValuesChange(values, nextStore);
+     }
+   };
 
   getForm = () => {
     return {
@@ -373,3 +373,88 @@ class FormStore {
 ```
 
 到此为止，`Form`、`Field`、`useForm`的核心就完成了，表单可以正常使用，补上一个表单提交的逻辑就行了
+
+# 表单提交
+
+`form`实例提供了一个`submit`方法，调用`form.submit()`就能够实现对表单的提交,`submit`方法中调用了组件自身上的表单校验方法
+
+```js
+class FormStore {
+
++ validateFields = () => {
+    const promiseList: Promise<{
+      name: string;
+      errors: string[];
+    }>[] = [];
+    // 获取到所有在field初始化时保存进来的组件
+    this.getFieldEntities(true).forEach(entity => {
+      const promise = entity.validateRules();
+      const { name } = entity.props;
+      promiseList.push(
+        promise
+          .then(() => ({ name, errors: [] }))
+          .catch((errors: any) =>
+            Promise.reject({
+              name,
+              errors,
+            }),
+          ),
+      );
+    });
+
+    let hasError = false;
+    let count = promiseList.length;
+    const results: FieldError[] = [];
+
+    const summaryPromise = new Promise((resolve, reject) => {
+      promiseList.forEach((promise, index) => {
+        promise
+          .catch(e => {
+            hasError = true;
+            return e;
+          })
+          .then(result => {
+            count -= 1;
+            results[index] = result;
+            if (count > 0) {
+              return;
+            }
+            if (hasError) {
+              reject(results);
+            }
+            resolve(this.getFieldsValue());
+          });
+      });
+    });
+
+    return summaryPromise as Promise<Store>;
+  };
+
++ submit = async () => {
+    this.validateFields()
+      .then(values => {
+        const { onFinish } = this.callbacks;
+        if (onFinish) {
+          try {
+            onFinish(values);
+          } catch (err) {
+            console.error(err);
+          }
+        }
+      })
+      .catch(e => {
+        const { onFinishFailed } = this.callbacks;
+        if (onFinishFailed) {
+          onFinishFailed(e);
+        }
+      });
+  };
+  getForm = () => {
+    return {
++    submit,
+    };
+  };
+}
+```
+
+这样 一个简单可用的`Form`组件就封装完了，建议配合源码食用
